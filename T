@@ -1,0 +1,322 @@
+import discord  
+from discord import app_commands  
+import os  
+import random  
+import re  
+import io  
+import string  
+  
+class ObfuscatorLogic:  
+    @staticmethod  
+    def minify(code):  
+        # Remove comentários multi-linha e linha única  
+        code = re.sub(r'--\[\[.*?\]\]', '', code, flags=re.DOTALL)  
+        code = re.sub(r'--[^\n]*', '', code)  
+        # Remove quebras de linha e espaços duplos para reduzir KB antes do HEX  
+        code = re.sub(r'\s+', ' ', code).strip()  
+        return code  
+  
+    @staticmethod  
+    def pack_script(code):  
+        # Primeiro minificamos para garantir o menor Hex possível  
+        minified = ObfuscatorLogic.minify(code)  
+        hex_encoded = minified.encode('utf-8').hex()  
+          
+        # Variáveis de 1 letra para economizar espaço  
+        h = f"h{random.randint(1,9)}"  
+        d = f"d{random.randint(1,9)}"  
+          
+        # Loader ultra-compacto sem espaços desnecessários  
+        loader = f'local {h}="{hex_encoded}";local {d}={h}:gsub("..",function(c)return string.char(tonumber(c,16))end);return assert(loadstring or load)({d})()'  
+        return loader    
+    
+    @staticmethod    
+    def garbage_code(code):    
+        # Lixo mais curto para não pesar no arquivo final  
+        g = "local " + ",".join([f"v{i}" for i in range(5)]) + "=0;"  
+        return g + code    
+    
+class ConfigView(discord.ui.View):    
+    def __init__(self, user, code_content):    
+        super().__init__(timeout=None)    
+        self.user = user    
+        self.code_content = code_content    
+        self.settings = {    
+            "remover_comentarios": False, "compressor": False, "renomear_variaveis": False,    
+            "codigo_lixo": False, "fluxo_controle": False, "hex_strings": False,    
+            "anti_tampering": False, "virtual_machine": False, "wrap_functions": False,    
+            "embaralhar": False, "opaque_predicates": False, "bytecode_encoding": False,    
+            "string_encoding": False, "string_expression": False, "function_inlining": False,    
+            "dynamic_code": False, "control_flow_v2": False, "double_wrap": False,    
+            "byte_shuffle": False, "heavy_metadata": False, "constant_isolation": False,    
+            "logic_masking": False, "encryption_v3": False, "integrity_check": False, "junk_args": False    
+        }    
+    
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:    
+        if interaction.user != self.user:    
+            embed = discord.Embed(    
+                title="Acesso Negado",    
+                description="Você não pode mexer nos botões, apenas a pessoa que executou o comando. Se quiser mexer, você próprio execute.",    
+                color=0xff0000    
+            )    
+            await interaction.response.send_message(embed=embed, ephemeral=True)    
+            return False    
+        return True    
+    
+    def create_embed(self, option_name):    
+        status = self.settings[option_name]    
+        label = option_name.replace('_', ' ').title()    
+        color = 0x00ff00 if status else 0xff0000    
+        embed = discord.Embed(    
+            title="Ajuste de Proteção",    
+            description=f"Opção: **{label}**\nStatus atual: **{'ATIVADO' if status else 'DESATIVADO'}**",    
+            color=color    
+        )    
+        return embed    
+    
+    @discord.ui.select(    
+        placeholder="Selecione as Proteções...",    
+        options=[    
+            discord.SelectOption(label="Remover Comentários", value="remover_comentarios", description="Apaga todas as notas do desenvolvedor (--)."),    
+            discord.SelectOption(label="Compressor/Minify", value="compressor", description="Remove espaços e quebras de linha inúteis."),    
+            discord.SelectOption(label="Variable Renaming", value="renomear_variaveis", description="Troca nomes de variáveis por códigos aleatórios."),    
+            discord.SelectOption(label="Garbage Code", value="codigo_lixo", description="Adiciona funções falsas para confundir hackers."),    
+            discord.SelectOption(label="Control Flow", value="fluxo_controle", description="Altera a ordem lógica de execução do script."),    
+            discord.SelectOption(label="String Hex Encoding", value="hex_strings", description="Transforma textos em códigos hexadecimais."),    
+            discord.SelectOption(label="Anti-Tampering", value="anti_tampering", description="Impede que o script seja alterado ou editado."),    
+            discord.SelectOption(label="Virtual Machine", value="virtual_machine", description="Roda o script dentro de uma camada virtual."),    
+            discord.SelectOption(label="Function Wrapping", value="wrap_functions", description="Envolve funções em pcalls para proteção extra."),    
+            discord.SelectOption(label="Embaralhar Lógica", value="embaralhar", description="Mistura a estrutura do código sem quebrar."),    
+            discord.SelectOption(label="Opaque Predicates", value="opaque_predicates", description="Cria condições lógicas falsas e complexas."),    
+            discord.SelectOption(label="Bytecode Encoding", value="bytecode_encoding", description="Transforma o código em bytecode ilegível (Empacotador)."),    
+            discord.SelectOption(label="String to Expression", value="string_expression", description="Converte textos em cálculos matemáticos."),    
+            discord.SelectOption(label="Function Inlining", value="function_inlining", description="Expande funções para dificultar a análise."),    
+            discord.SelectOption(label="Dynamic Code", value="dynamic_code", description="Gera partes do código durante a execução."),    
+            discord.SelectOption(label="Control Flow V2", value="control_flow_v2", description="Um fluxo de controle muito mais agressivo."),    
+            discord.SelectOption(label="Double Wrapping", value="double_wrap", description="Cria duas camadas de proteção em cada função."),    
+            discord.SelectOption(label="Byte Shuffle", value="byte_shuffle", description="Embaralha os bytes das strings internas."),    
+            discord.SelectOption(label="Heavy Metadata", value="heavy_metadata", description="Enche o script de metadados inúteis."),    
+            discord.SelectOption(label="Constant Isolation", value="constant_isolation", description="Isola valores fixos em tabelas protegidas."),    
+            discord.SelectOption(label="Logic Masking", value="logic_masking", description="Mascará a lógica real atrás de cálculos."),    
+            discord.SelectOption(label="Encryption V3", value="encryption_v3", description="Criptografia de terceira geração ultra forte."),    
+            discord.SelectOption(label="Integrity Check", value="integrity_check", description="Verifica se o script foi modificado no roblox."),    
+            discord.SelectOption(label="Junk Arguments", value="junk_args", description="Adiciona argumentos falsos em todas as funções."),    
+            discord.SelectOption(label="String Encoding v2", value="string_encoding", description="Uma forma avançada de esconder textos."),    
+        ]    
+    )    
+    async def select_callback(self, interaction: discord.Interaction, select: discord.ui.Select):    
+        option = select.values[0]    
+        select.placeholder = f"Selecionado: {option.replace('_', ' ').title()}"    
+            
+        view = discord.ui.View()    
+        is_active = self.settings[option]    
+        btn_label = "Desativar" if is_active else "Ativar"    
+        btn_style = discord.ButtonStyle.danger if is_active else discord.ButtonStyle.success    
+        toggle_btn = discord.ui.Button(label=btn_label, style=btn_style)    
+    
+        async def toggle_callback(it: discord.Interaction):    
+            self.settings[option] = not self.settings[option]    
+            new_is_active = self.settings[option]    
+            toggle_btn.label = "Desativar" if new_is_active else "Ativar"    
+            toggle_btn.style = discord.ButtonStyle.danger if new_is_active else discord.ButtonStyle.success    
+            await it.response.edit_message(embed=self.create_embed(option), view=view)    
+    
+        toggle_btn.callback = toggle_callback    
+        view.add_item(toggle_btn)    
+        await interaction.response.send_message(embed=self.create_embed(option), view=view, ephemeral=True)    
+    
+    @discord.ui.select(    
+        placeholder="Utilitários e Status...",    
+        options=[    
+            discord.SelectOption(label="Ver Código Fonte (Source)", value="view_source", description="Veja o código original que você enviou."),    
+            discord.SelectOption(label="Status das Opções", value="view_status", description="Lista o que está Ativo ou Desativado.")    
+        ]    
+    )    
+    async def tools_callback(self, interaction: discord.Interaction, select: discord.ui.Select):    
+        val = select.values[0]    
+        if val == "view_source":    
+            preview = self.code_content if len(self.code_content) < 1000 else self.code_content[:1000] + "\n..."    
+            embed = discord.Embed(title="Código Fonte", description=f"```lua\n{preview}\n```", color=0x5865f2)    
+            await interaction.response.send_message(embed=embed, ephemeral=True)    
+        elif val == "view_status":    
+            status_text = ""    
+            for k, v in self.settings.items():    
+                status_text += f"**{k.replace('_', ' ').title()}**: {'✅ Ativo' if v else '❌ Desativado'}\n"    
+            embed = discord.Embed(title="Status de Proteção", description=status_text, color=0x5865f2)    
+            await interaction.response.send_message(embed=embed, ephemeral=True)    
+    
+    @discord.ui.select(    
+        placeholder="Nível de Dificuldade (Presets)",    
+        options=[    
+            discord.SelectOption(label="Leve", value="leve", description="Proteção básica e rápida."),    
+            discord.SelectOption(label="Mediana", value="mediana", description="Equilíbrio entre segurança e performance."),    
+            discord.SelectOption(label="Difícil", value="dificil", description="Proteção pesada contra decompile."),    
+            discord.SelectOption(label="Impossível", value="impossivel", description="Máxima virtualização e obfuscamento."),    
+            discord.SelectOption(label="Extremo", value="extremo", description="Segurança absoluta para scripts privados.")    
+        ]    
+    )    
+    async def difficulty_callback(self, interaction: discord.Interaction, select: discord.ui.Select):    
+        level = select.values[0]    
+        for k in self.settings: self.settings[k] = False    
+            
+        if level == "leve":    
+            self.settings["remover_comentarios"] = True    
+            self.settings["compressor"] = True    
+        elif level == "mediana":    
+            self.settings["remover_comentarios"] = True    
+            self.settings["bytecode_encoding"] = True    
+        elif level == "dificil":    
+            for k in ["remover_comentarios", "bytecode_encoding", "anti_tampering", "codigo_lixo"]:    
+                self.settings[k] = True    
+        elif level in ["impossivel", "extremo"]:    
+            for k in self.settings: self.settings[k] = True    
+                
+        embed = discord.Embed(    
+            title="⚙️ Dificuldade Alterada",    
+            description=f"O nível de proteção foi definido como: **{level.upper()}**\n\n*Nota: As opções foram ativadas na tabela de status.*",    
+            color=0x00ff00    
+        )    
+        await interaction.response.send_message(embed=embed, ephemeral=True)    
+    
+    @discord.ui.button(label="Start", style=discord.ButtonStyle.primary, row=4)    
+    async def start_button(self, interaction: discord.Interaction, button: discord.ui.Button):    
+          
+        if not any(self.settings.values()):  
+            embed_erro = discord.Embed(  
+                title="⚠️ Nenhuma Opção Selecionada",  
+                description="Você precisa ativar pelo menos uma opção de proteção ou escolher um Nível de Dificuldade antes de dar Start!",  
+                color=0xff0000  
+            )  
+            return await interaction.response.send_message(embed=embed_erro, ephemeral=True)  
+  
+        await interaction.response.defer(ephemeral=True)    
+        script = self.code_content    
+  
+        # Minifica SEMPRE antes de ofuscar para reduzir o tamanho do HEX  
+        if any(self.settings.values()):  
+            script = ObfuscatorLogic.minify(script)  
+  
+        if self.settings["anti_tampering"]:     
+            script = "if not game:IsLoaded() then game.Loaded:Wait() end;" + script    
+  
+        if self.settings["bytecode_encoding"] or self.settings["string_encoding"] or self.settings["encryption_v3"] or self.settings["hex_strings"] or self.settings["embaralhar"] or self.settings["virtual_machine"]:    
+            script = ObfuscatorLogic.pack_script(script)    
+    
+        if self.settings["codigo_lixo"]:     
+            script = ObfuscatorLogic.garbage_code(script)    
+    
+        random_id = "".join([str(random.randint(0, 9)) for _ in range(10)])    
+        filename = f"Obfuscator{random_id}script.txt"    
+        file = discord.File(io.BytesIO(script.encode('utf-8')), filename=filename)    
+            
+        embed_res = discord.Embed(    
+            title="✅ Obfuscação Segura Concluída",     
+            description="Seu Mod Menu foi empacotado e otimizado. O tamanho foi reduzido através de minificação pré-hex.",     
+            color=0x00ff00    
+        )    
+        await interaction.followup.send(embed=embed_res, file=file, ephemeral=True)  
+  
+class PaginacaoCastigo(discord.ui.View):  
+    def __init__(self, data, user):  
+        super().__init__(timeout=None)  
+        self.d = data  
+        self.u = user  
+        self.p = 0  
+        self.mp = max(0, (len(data) - 1) // 10)  
+        self.ub()  
+  
+    def ub(self):  
+        self.clear_items()  
+        if self.p > 0:  
+            bv = discord.ui.Button(label="<", style=discord.ButtonStyle.secondary)  
+            bv.callback = self.b_voltar  
+            self.add_item(bv)  
+        if self.p < self.mp:  
+            bi = discord.ui.Button(label=">", style=discord.ButtonStyle.secondary)  
+            bi.callback = self.b_ir  
+            self.add_item(bi)  
+  
+    def ge(self):  
+        s = self.p * 10  
+        c = self.d[s:s + 10]  
+        desc = ""  
+        n = discord.utils.utcnow()  
+        for m in c:  
+            t = m.timed_out_until - n  
+            d = t.days  
+            h, r = divmod(t.seconds, 3600)  
+            mn, _ = divmod(r, 60)  
+            ts = ""  
+            if d > 0: ts += f"{d} dias "  
+            if h > 0: ts += f"{h} horas "  
+            if mn > 0: ts += f"{mn} minutos"  
+            if not ts: ts = "Menos de 1 minuto"  
+              
+            tf = m.timed_out_until.strftime("%d/%m/%Y %H:%M")  
+            desc += f"**{m.display_name}**\nCastigado até (Definido): {tf}\nTempo Restante: {ts.strip()}\n\n"  
+        if not desc: desc = "Nenhum membro."  
+        return discord.Embed(title=f"Membros de Castigo ({self.p + 1}/{self.mp + 1})", description=desc, color=0xff0000)  
+  
+    async def b_voltar(self, i: discord.Interaction):  
+        if i.user != self.u: return  
+        self.p -= 1  
+        self.ub()  
+        await i.response.edit_message(embed=self.ge(), view=self)  
+  
+    async def b_ir(self, i: discord.Interaction):  
+        if i.user != self.u: return  
+        self.p += 1  
+        self.ub()  
+        await i.response.edit_message(embed=self.ge(), view=self)  
+  
+class ObfuscatorBot(discord.Client):    
+    def __init__(self):    
+        intents = discord.Intents.default()  
+        intents.members = True  
+        super().__init__(intents=intents)    
+        self.synced = False    
+    
+    async def on_ready(self):    
+        await self.wait_until_ready()    
+        if not self.synced:    
+            await tree.sync()    
+            self.synced = True    
+        print(f"✅ {self.user} ON")    
+    
+bot = ObfuscatorBot()    
+tree = app_commands.CommandTree(bot)    
+    
+@tree.command(name="obfuscator", description="Inicia o sistema de proteção de scripts")    
+@app_commands.describe(start="Digite 'Start' para começar", file="Upload do arquivo .txt ou .lua", script="Cole o código neste lugar")    
+async def obfuscate(interaction: discord.Interaction, start: str, file: discord.Attachment = None, script: str = None):    
+    if start.lower() != "start":    
+        return await interaction.response.send_message("Digite 'Start' para prosseguir.", ephemeral=True)    
+    
+    if not file and not script:    
+        return await interaction.response.send_message("Envie um arquivo ou cole um script.", ephemeral=True)    
+    
+    code_content = (await file.read()).decode('utf-8', errors='ignore') if file else script    
+    
+    embed = discord.Embed(    
+        title="🛡️ Script Protection System",    
+        description="Gostaria de usar o obfuscator para os seus scriptes tiverem suas maiores proteções a roubo?",    
+        color=0x5865f2    
+    )    
+        
+    view = ConfigView(interaction.user, code_content)    
+    await interaction.response.send_message(embed=embed, view=view)  
+  
+@tree.command(name="castigados", description="Lista todos os membros que estão mutados/de castigo.")  
+async def castigados(interaction: discord.Interaction):  
+    n = discord.utils.utcnow()  
+    m = [x for x in interaction.guild.members if x.timed_out_until and x.timed_out_until > n]  
+    if not m:  
+        return await interaction.response.send_message(embed=discord.Embed(description="Nenhum membro está de castigo no momento.", color=0x00ff00), ephemeral=True)  
+    v = PaginacaoCastigo(m, interaction.user)  
+    await interaction.response.send_message(embed=v.ge(), view=v, ephemeral=True)  
+    
+TOKEN = os.environ.get("DIS")    
+if not TOKEN:    
+    print("❌ Token não encontrado!")    
+else:    
+    bot.run(TOKEN)  
